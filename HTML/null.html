@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gmail SMS Dispatcher - Dark Edition</title>
+  
+  <!-- 引入 EmailJS SDK -->
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+  
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0f1117 0%, #161922 100%);
+      --card-bg: rgba(22, 27, 38, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --input-bg: rgba(10, 13, 20, 0.6);
+      --input-border: rgba(255, 255, 255, 0.12);
+      --input-focus: #ff4b4b;
+      --accent-color: #ff3b30;
+      --accent-gradient: linear-gradient(135deg, #ff4b4b 0%, #dc2626 100%);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    /* 背景暗光裝飾點綴 */
+    body::before {
+      content: '';
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      background: rgba(239, 68, 68, 0.15);
+      filter: blur(120px);
+      border-radius: 50%;
+      top: 20%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 0;
+    }
+
+    .card {
+      position: relative;
+      z-index: 1;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      padding: 36px 32px;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5),
+                  0 0 0 1px rgba(255, 255, 255, 0.05);
+      width: 100%;
+      max-width: 460px;
+    }
+
+    .card h2 {
+      margin-bottom: 6px;
+      font-weight: 700;
+      font-size: 1.5rem;
+      letter-spacing: -0.5px;
+      text-align: center;
+      background: linear-gradient(180deg, #ffffff 0%, #d1d5db 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .card p.subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .form-row .form-group {
+      flex: 1;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      outline: none;
+      transition: all 0.25s ease;
+    }
+
+    select option {
+      background: #161922;
+      color: var(--text-main);
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--input-focus);
+      box-shadow: 0 0 0 3px rgba(255, 75, 75, 0.2);
+      background: rgba(15, 18, 26, 0.8);
+    }
+
+    textarea {
+      resize: vertical;
+      height: 95px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent-gradient);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      margin-top: 10px;
+      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+    }
+
+    button:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      background: #374151;
+      color: #9ca3af;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .status-msg {
+      margin-top: 18px;
+      font-size: 0.85rem;
+      text-align: center;
+      display: none;
+      white-space: pre-line;
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    .status-msg.info {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      display: block;
+    }
+
+    .status-msg.success {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+      display: block;
+    }
+
+    .status-msg.error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>SMS DISPATCHER</h2>
+    <p class="subtitle">Gmail API Gateway Infrastructure</p>
+
+    <form id="smsForm">
+      <div class="form-group">
+        <label for="phone">接收者手機號碼</label>
+        <input type="tel" id="phone" placeholder="例如: 0912345678" required>
+      </div>
+
+      <div class="form-group">
+        <label for="gateway">電信商 Email 簡訊網關</label>
+        <select id="gateway" required>
+          <option value="@tmomail.net">T-Mobile (美國)</option>
+          <option value="@txt.att.net">AT&T (美國)</option>
+          <option value="@vtext.com">Verizon (美國)</option>
+          <option value="@custom">自訂域名 / 簡訊服務網關</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="customDomainGroup" style="display: none;">
+        <label for="customDomain">自訂網關後綴 (含 @)</label>
+        <input type="text" id="customDomain" placeholder="@your-sms-gateway.com">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="repeatCount">發送次數</label>
+          <input type="number" id="repeatCount" value="1" min="1" max="50" required>
+        </div>
+        <div class="form-group">
+          <label for="interval">間隔 (秒)</label>
+          <input type="number" id="interval" value="2" min="1" max="60" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="message">簡訊內容</label>
+        <textarea id="message" placeholder="輸入簡訊內容..." maxlength="160" required></textarea>
+      </div>
+
+      <button type="submit" id="submitBtn">EXECUTE DISPATCH</button>
+    </form>
+
+    <div id="statusMsg" class="status-msg"></div>
+  </div>
+
+  <script>
+    // ==========================================
+    // ⚙️ 設定區：請在此填入您的 EmailJS 金鑰資訊
+    // ==========================================
+    const EMAILJS_PUBLIC_KEY = "YOUR_PUBLIC_KEY";  
+    const EMAILJS_SERVICE_ID = "YOUR_SERVICE_ID";  
+    const EMAILJS_TEMPLATE_ID = "YOUR_TEMPLATE_ID";
+
+    // 初始化 EmailJS
+    (function() {
+      if (EMAILJS_PUBLIC_KEY !== "YOUR_PUBLIC_KEY") {
+        emailjs.init(EMAILJS_PUBLIC_KEY);
+      }
+    })();
+
+    const gatewaySelect = document.getElementById('gateway');
+    const customDomainGroup = document.getElementById('customDomainGroup');
+    const smsForm = document.getElementById('smsForm');
+    const statusMsg = document.getElementById('statusMsg');
+    const submitBtn = document.getElementById('submitBtn');
+
+    gatewaySelect.addEventListener('change', (e) => {
+      customDomainGroup.style.display = (e.target.value === '@custom') ? 'block' : 'none';
+    });
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    smsForm.addEventListener('submit', async function(event) {
+      event.preventDefault();
+
+      if (EMAILJS_PUBLIC_KEY === "YOUR_PUBLIC_KEY") {
+        showStatus('請先在代碼中填入您的 EmailJS 設定參數！', 'error');
+        return;
+      }
+
+      const phone = document.getElementById('phone').value.trim();
+      let domain = gatewaySelect.value;
+      if (domain === '@custom') {
+        domain = document.getElementById('customDomain').value.trim();
+      }
+
+      const count = parseInt(document.getElementById('repeatCount').value, 10);
+      const intervalSec = parseInt(document.getElementById('interval').value, 10);
+      const message = document.getElementById('message').value;
+      const targetEmail = phone + domain;
+
+      submitBtn.disabled = true;
+      
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 1; i <= count; i++) {
+        submitBtn.innerText = `DISPATCHING (${i}/${count})...`;
+        showStatus(`正在處理第 ${i}/${count} 則請求...`, 'info');
+
+        const templateParams = {
+          to_email: targetEmail,
+          message: message
+        };
+
+        try {
+          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+          successCount++;
+        } catch (error) {
+          console.error(`第 ${i} 次發送失敗:`, error);
+          failCount++;
+        }
+
+        if (i < count) {
+          await sleep(intervalSec * 1000);
+        }
+      }
+
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'EXECUTE DISPATCH';
+
+      if (failCount === 0) {
+        showStatus(`STATUS 200: 成功發送全部 ${successCount} 則簡訊！`, 'success');
+        smsForm.reset();
+        customDomainGroup.style.display = 'none';
+      } else {
+        showStatus(`DISPATCH COMPLETE\n成功: ${successCount} | 失敗: ${failCount}`, 'error');
+      }
+    });
+
+    function showStatus(text, type) {
+      statusMsg.innerText = text;
+      statusMsg.className = 'status-msg ' + type;
+    }
+  </script>
+</body>
+</html>

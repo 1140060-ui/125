@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 請求器 - 伺服器連線版</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 28px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid #334155;
+            max-width: 520px;
+            width: 100%;
+        }
+
+        .card h2 {
+            color: #f8fafc;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+
+        /* --- 伺服器設定區塊 --- */
+        .server-group {
+            background-color: #0f172a;
+            border: 1px solid #334155;
+            padding: 14px 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+        }
+
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #64748b; /* 預設灰燈 */
+        }
+        .dot.online { background-color: #34d399; box-shadow: 0 0 8px #34d399; } /* 綠燈 */
+        .dot.offline { background-color: #f87171; box-shadow: 0 0 8px #f87171; } /* 紅燈 */
+
+        .server-input-box {
+            display: flex;
+            gap: 8px;
+        }
+
+        .url-input {
+            flex: 1;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #38bdf8;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .ping-btn {
+            background: #334155;
+            color: #f3f4f6;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .ping-btn:hover { background: #475569; }
+
+        /* --- 一般設定區塊 --- */
+        .setting-group {
+            background-color: #0f172a;
+            border: 1px solid #334155;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .setting-group label {
+            font-size: 0.9rem;
+            color: #cbd5e1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .num-input {
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #38bdf8;
+            padding: 4px 8px;
+            border-radius: 6px;
+            width: 60px;
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #475569;
+            transition: .3s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px; width: 18px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #10b981; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* 按鈕樣式 */
+        .btn {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: #ffffff;
+            border: none;
+            padding: 14px 20px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            margin-top: 10px;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+        .btn:hover {
+            background: linear-gradient(135deg, #4f46e5, #4338ca);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        }
+        .btn:disabled {
+            background: #475569;
+            box-shadow: none;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid #ffffff;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Log 區域 */
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 24px;
+            margin-bottom: 10px;
+        }
+        .log-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .clear-btn { background: none; border: none; color: #64748b; font-size: 0.8rem; cursor: pointer; }
+        .clear-btn:hover { color: #cbd5e1; }
+
+        .log-container {
+            background-color: #090d16;
+            color: #e2e8f0;
+            font-family: 'Fira Code', 'Consolas', Monaco, monospace;
+            font-size: 0.85rem;
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px solid #1e293b;
+            height: 200px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .log-container::-webkit-scrollbar { width: 6px; }
+        .log-container::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+        .log-item { line-height: 1.5; word-break: break-all; }
+        .log-item .time { color: #64748b; }
+        .log-item.info { color: #38bdf8; }
+        .log-item.success { color: #34d399; }
+        .log-item.error { color: #f87171; }
+        .log-item.warning { color: #fbbf24; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>API 伺服器測試器</h2>
+
+        <!-- 伺服器網址與連線測試區塊 -->
+        <div class="server-group">
+            <div class="server-header">
+                <span>TARGET SERVER URL</span>
+                <div class="status-badge">
+                    <span id="statusDot" class="dot"></span>
+                    <span id="statusText">未測試</span>
+                </div>
+            </div>
+            <div class="server-input-box">
+                <input type="text" id="serverUrl" class="url-input" value="https://jsonplaceholder.typicode.com/posts">
+                <button class="ping-btn" onclick="testConnection()">測試連線</button>
+            </div>
+        </div>
+
+        <!-- 批次設定 -->
+        <div class="setting-group">
+            <label for="batchInput">單次併發數量：</label>
+            <div>
+                <input type="number" id="batchInput" class="num-input" value="5" min="1" max="50"> 次
+            </div>
+        </div>
+
+        <!-- 自動循環設定 -->
+        <div class="setting-group">
+            <label>
+                每 <input type="number" id="intervalInput" class="num-input" value="5" min="1" max="60"> 秒自動循環
+            </label>
+            <label class="switch">
+                <input type="checkbox" id="autoToggle" onchange="toggleAutoSend()">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <button id="sendBtn" class="btn" onclick="triggerBatchSend()">
+            <span id="spinner" class="spinner"></span>
+            <span id="btnText">手動發送請求</span>
+        </button>
+
+        <!-- Log 區域 -->
+        <div class="log-header">
+            <span class="log-title">Console Log</span>
+            <button class="clear-btn" onclick="clearLog()">Clear</button>
+        </div>
+        <div id="logContainer" class="log-container">
+            <div class="log-item info"><span class="time">[SYSTEM]</span> 系統就緒，請確認伺服器網址...</div>
+        </div>
+    </div>
+
+    <script>
+        let countdownTimer = null;
+        let countdownValue = 0;
+        let isSending = false;
+
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+
+            const logItem = document.createElement('div');
+            logItem.className = `log-item ${type}`;
+            logItem.innerHTML = `<span class="time">[${timeStr}]</span> ${message}`;
+
+            logContainer.appendChild(logItem);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('logContainer').innerHTML = '';
+            addLog('紀錄已清空', 'info');
+        }
+
+        // --- 測試伺服器連線 (Ping/Check) ---
+        async function testConnection() {
+            const url = document.getElementById('serverUrl').value.trim();
+            const dot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+
+            if (!url) {
+                addLog('請輸入有效的伺服器網址！', 'error');
+                return;
+            }
+
+            addLog(`正在測試連線至: ${url} ...`, 'info');
+            statusText.innerText = "連線中...";
+            dot.className = "dot";
+
+            const startTime = Date.now();
+
+            try {
+                let response = await fetch(url, { method: 'GET' });
+                const duration = Date.now() - startTime;
+
+                if (response.ok || response.status < 500) {
+                    dot.className = "dot online";
+                    statusText.innerText = `已連線 (${duration}ms)`;
+                    addLog(`伺服器連線正常！延遲: ${duration}ms`, 'success');
+                } else {
+                    dot.className = "dot offline";
+                    statusText.innerText = `異常 (HTTP ${response.status})`;
+                    addLog(`伺服器回應異常，HTTP 狀態碼: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                dot.className = "dot offline";
+                statusText.innerText = "連線失敗";
+                addLog(`無法連接至伺服器 (可能為跨域 CORS 阻擋或網路問題)：${error.message}`, 'error');
+            }
+        }
+
+        // --- 自動發送邏輯 ---
+        function toggleAutoSend() {
+            const isChecked = document.getElementById('autoToggle').checked;
+            const intervalInput = document.getElementById('intervalInput');
+
+            if (isChecked) {
+                const seconds = parseInt(intervalInput.value) || 5;
+                intervalInput.disabled = true;
+                addLog(`自動循環已開啟（每 ${seconds} 秒觸發一次）`, 'warning');
+
+                triggerBatchSend();
+                startCountdown(seconds);
+            } else {
+                intervalInput.disabled = false;
+                clearInterval(countdownTimer);
+                addLog(`自動發送已關閉`, 'warning');
+                document.getElementById('btnText').innerText = '手動發送請求';
+            }
+        }
+
+        function startCountdown(seconds) {
+            clearInterval(countdownTimer);
+            countdownValue = seconds;
+
+            countdownTimer = setInterval(() => {
+                if (countdownValue > 0) countdownValue--;
+
+                if (document.getElementById('autoToggle').checked) {
+                    if (isSending) {
+                        document.getElementById('btnText').innerText = `處理中... (${countdownValue}s)`;
+                    } else {
+                        document.getElementById('btnText').innerText = `倒數中 (${countdownValue}s)...`;
+                    }
+                }
+
+                if (countdownValue <= 0 && !isSending) {
+                    countdownValue = seconds;
+                    triggerBatchSend();
+                }
+            }, 1000);
+        }
+
+        // --- 單次 POST 請求（含延遲時間計算）---
+        async function singleFetch(url, index) {
+            const payload = { action: "batch_event", reqIndex: index, timestamp: Date.now() };
+            const startTime = Date.now();
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const duration = Date.now() - startTime;
+
+                if (response.ok || response.status === 201) {
+                    addLog(`[#${index}] 發送成功 (HTTP ${response.status}, ${duration}ms)`, 'success');
+                    return true;
+                } else {
+                    addLog(`[#${index}] 失敗 (HTTP ${response.status}, ${duration}ms)`, 'error');
+                    return false;
+                }
+            } catch (error) {
+                const duration = Date.now() - startTime;
+                addLog(`[#${index}] 異常 (${duration}ms): ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // --- 批次發送核心 ---
+        async function triggerBatchSend() {
+            if (isSending) return;
+
+            const targetUrl = document.getElementById('serverUrl').value.trim();
+            if (!targetUrl) {
+                addLog('請輸入伺服器網址後再試！', 'error');
+                document.getElementById('autoToggle').checked = false;
+                toggleAutoSend();
+                return;
+            }
+
+            const btn = document.getElementById('sendBtn');
+            const spinner = document.getElementById('spinner');
+            const batchCount = parseInt(document.getElementById('batchInput').value) || 1;
+            const isAuto = document.getElementById('autoToggle').checked;
+
+            isSending = true;
+            btn.disabled = true;
+            spinner.style.display = 'inline-block';
+
+            addLog(`🚀 批次發送 ${batchCount} 個請求至 ${targetUrl}...`, 'info');
+
+            const requests = [];
+            for (let i = 1; i <= batchCount; i++) {
+                requests.push(singleFetch(targetUrl, i));
+            }
+
+            const results = await Promise.all(requests);
+            const successCount = results.filter(res => res === true).length;
+
+            addLog(`📊 批次完成：成功 ${successCount} / 失敗 ${batchCount - successCount}`, 'warning');
+
+            isSending = false;
+            btn.disabled = false;
+            spinner.style.display = 'none';
+
+            if (!isAuto) {
+                document.getElementById('btnText').innerText = '手動發送請求';
+            }
+        }
+    </script>
+</body>
+</html>
