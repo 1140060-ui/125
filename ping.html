@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>網站 Ping & 多輪檢測 (含詳細 Log 日誌)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .glow-box { box-shadow: 0 0 35px rgba(56, 189, 248, 0.15); }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 glow-box my-8">
+        
+        <div class="text-center mb-6">
+            <div class="inline-block p-3 rounded-full bg-blue-500/10 text-blue-400 mb-3 text-3xl">🌐</div>
+            <h1 class="text-2xl font-bold text-white">多輪網站連線檢測 (Ping)</h1>
+            <p class="text-xs text-slate-400 mt-1">支援自訂 Ping 次數與完整運行 Log 日誌記錄</p>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-400 mb-1.5">目標網址 (URL)</label>
+                <input type="url" id="targetUrl" placeholder="https://www.baidu.com" value="https://www.baidu.com"
+                    class="w-full bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 font-mono">
+            </div>
+
+            <!-- 次數選擇 -->
+            <div>
+                <label class="block text-xs font-bold text-slate-400 mb-1.5">Ping 測試次數</label>
+                <select id="pingCount" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 font-mono">
+                    <option value="1">1 次 (快速測試)</option>
+                    <option value="3" selected>3 次 (標準測試)</option>
+                    <option value="5">5 次 (穩定度測試)</option>
+                    <option value="10">10 次 (深度測試)
+</option>
+                    <option value="100">100 次 (攻擊測試)</option>
+                    <option value="1000">1000 次 (DDOS攻擊)</option>
+		    <option value="10000">10000 次 (高級DDOS攻擊)</option>
+
+                </select>
+            </div>
+
+            <button onclick="pingWebsite()" id="pingBtn"
+                class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2">
+                <span id="btnText">🚀 開始測試連線</span>
+            </button>
+        </div>
+
+        <!-- 檢測結果區塊 -->
+        <div id="pingResult" class="hidden mt-6 pt-6 border-t border-slate-800 space-y-4">
+            
+            <div id="statusBadge" class="p-3 rounded-xl text-center font-bold text-sm">--</div>
+
+            <!-- 數據統計 -->
+            <div class="grid grid-cols-3 gap-2">
+                <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50 text-center">
+                    <span class="text-slate-400 text-xs block mb-1">平均延遲</span>
+                    <span id="resAvgLatency" class="text-emerald-400 font-mono font-bold text-base">-- ms</span>
+                </div>
+                <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50 text-center">
+                    <span class="text-slate-400 text-xs block mb-1">成功率</span>
+                    <span id="resSuccessRate" class="text-blue-400 font-mono font-bold text-base">--%</span>
+                </div>
+                <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50 text-center">
+                    <span class="text-slate-400 text-xs block mb-1">完成次數</span>
+                    <span id="resCompleted" class="text-purple-400 font-mono font-bold text-base">0/0</span>
+                </div>
+            </div>
+
+            <!-- 📜 即時 Log 日誌區塊 -->
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs text-slate-400 font-bold">📄 即時運行 Log 日誌：</span>
+                    <div class="flex gap-2">
+                        <button onclick="copyLog()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 transition-colors">
+                            📋 複製 Log
+                        </button>
+                        <button onclick="clearLog()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-400 px-2.5 py-1 rounded-lg border border-slate-700 transition-colors">
+                            🗑️ 清空
+                        </button>
+                    </div>
+                </div>
+                <div id="pingLog" class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 font-mono text-xs space-y-1.5 max-h-48 overflow-y-auto leading-relaxed">
+                    <!-- 動態寫入 Log -->
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        let rawLogText = ""; // 存放純文字報告供複製
+
+        function getTimeStamp() {
+            const now = new Date();
+            const time = now.toTimeString().split(' ')[0];
+            const ms = String(now.getMilliseconds()).padStart(3, '0');
+            return `${time}.${ms}`;
+        }
+
+        function appendLog(message, type = 'info') {
+            const pingLog = document.getElementById('pingLog');
+            const logRow = document.createElement('div');
+            const timeStr = `[${getTimeStamp()}]`;
+
+            let colorClass = 'text-slate-300';
+            if (type === 'success') colorClass = 'text-emerald-400 font-bold';
+            if (type === 'error') colorClass = 'text-red-400 font-bold';
+            if (type === 'system') colorClass = 'text-cyan-400 font-bold';
+
+            logRow.className = 'flex gap-2';
+            logRow.innerHTML = `<span class="text-slate-500 flex-shrink-0">${timeStr}</span><span class="${colorClass}">${message}</span>`;
+
+            pingLog.appendChild(logRow);
+            pingLog.scrollTop = pingLog.scrollHeight; // 自動捲動到底部
+
+            // 累積純文字紀錄
+            rawLogText += `${timeStr} ${message}\n`;
+        }
+
+        async function singlePing(url) {
+            const startTime = performance.now();
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 0); // 3 秒 Timeout
+
+            try {
+                await fetch(url, {
+                    method: 'HEAD',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                const endTime = performance.now();
+                return { success: true, latency: Math.round(endTime - startTime) };
+            } catch (err) {
+                clearTimeout(timeoutId);
+                return { success: false, latency: null };
+            }
+        }
+
+        async function pingWebsite() {
+            let urlInput = document.getElementById('targetUrl').value.trim();
+            const totalCount = parseInt(document.getElementById('pingCount').value, 10);
+            
+            const btn = document.getElementById('pingBtn');
+            const btnText = document.getElementById('btnText');
+            const resultBox = document.getElementById('pingResult');
+            const statusBadge = document.getElementById('statusBadge');
+
+            if (!urlInput) {
+                alert('請輸入有效的 URL 網址！');
+                return;
+            }
+
+            if (!/^https?:\/\//i.test(urlInput)) {
+                urlInput = 'https://' + urlInput;
+                document.getElementById('targetUrl').value = urlInput;
+            }
+
+            btn.disabled = true;
+            resultBox.classList.remove('hidden');
+            
+            // 重置 Log
+            clearLog();
+            appendLog(`初始化測試任務：目標 ${urlInput}，預計 Ping ${totalCount} 次`, 'system');
+
+            let successCount = 0;
+            let totalLatency = 0;
+
+            for (let i = 1; i <= totalCount; i++) {
+                btnText.innerText = `⏱️ 正在測試 (${i}/${totalCount})...`;
+                document.getElementById('resCompleted').innerText = `${i}/${totalCount}`;
+
+                const result = await singlePing(urlInput);
+
+                if (result.success) {
+                    successCount++;
+                    totalLatency += result.latency;
+                    appendLog(`第 ${i} 次連線成功 - 延遲: ${result.latency} ms`, 'success');
+                } else {
+                    appendLog(`第 ${i} 次連線失敗 - 請求超時 (Timeout)`, 'error');
+                }
+
+                if (i < totalCount) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+
+            // 計算統計數據
+            const successRate = Math.round((successCount / totalCount) * 100);
+            const avgLatency = successCount > 0 ? Math.round(totalLatency / successCount) : 0;
+
+            appendLog(`測試結束：成功率 ${successRate}%，平均延遲 ${avgLatency} ms`, 'system');
+
+            // 更新 UI 狀態
+            if (successCount === totalCount) {
+                statusBadge.innerText = '✅ 所有 Ping 測試均順利完成';
+                statusBadge.className = 'p-3 rounded-xl text-center font-bold text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+            } else if (successCount > 0) {
+                statusBadge.innerText = `⚠️ 測試完成，但有 ${totalCount - successCount} 次請求失敗`;
+                statusBadge.className = 'p-3 rounded-xl text-center font-bold text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20';
+            } else {
+                statusBadge.innerText = '❌ 所有 Ping 測試均失敗';
+                statusBadge.className = 'p-3 rounded-xl text-center font-bold text-xs bg-red-500/10 text-red-400 border border-red-500/20';
+            }
+
+            document.getElementById('resAvgLatency').innerText = successCount > 0 ? `${avgLatency} ms` : 'N/A';
+            document.getElementById('resSuccessRate').innerText = `${successRate}%`;
+
+            btn.disabled = false;
+            btnText.innerText = '🚀 開始測試連線';
+        }
+
+        function copyLog() {
+            if (!rawLogText) return;
+            navigator.clipboard.writeText(rawLogText).then(() => {
+                alert('📋 Log 日誌已成功複製到剪貼簿！');
+            });
+        }
+
+        function clearLog() {
+            document.getElementById('pingLog').innerHTML = '';
+            rawLogText = "";
+        }
+    </script>
+</body>
+</html>
